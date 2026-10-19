@@ -9,7 +9,13 @@ export default async (request, context) => {
     return json({ error: "Method not allowed" }, 405, { Allow: "GET" });
   }
 
-  const { symbol } = context.params;
+  let symbol;
+  try {
+    symbol = decodeURIComponent(context.params.symbol || "");
+  } catch {
+    return json({ error: "Invalid symbol" }, 400);
+  }
+
   if (!symbol || !/^[A-Za-z0-9.^=_-]{1,32}$/.test(symbol)) {
     return json({ error: "Invalid symbol" }, 400);
   }
