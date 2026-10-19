@@ -1,0 +1,20 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "cvQoEfBqREVb7nWx41Ipj"
+uri = "file://docs/HLD.md"
+type = "text"
+title = "HLD — MortifiedStylishModel Architecture"
+
+[[outputs]]
+id = "ow6s6_fdKfor2VbI4csAr"
+uri = "file://docs/LLD.md"
+type = "text"
+title = "LLD — MortifiedStylishModel Architecture"
+
+[[outputs]]
+id = "NsDkL44JzHwgWhv-tjtCw"
+uri = "file://docs/RUNBOOK.md"
+type = "text"
+title = "RUNBOOK — MortifiedStylishModel Operations"

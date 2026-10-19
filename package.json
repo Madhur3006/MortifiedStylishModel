@@ -1,0 +1,17 @@
+{
+  "name": "ongc-live-dashboard",
+  "version": "1.0.0",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "ONGC Live Institutional Dashboard with real-time data proxy",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "node-fetch": "^3.3.2"
+  }
+}

@@ -1,0 +1,1 @@
+- [NSE upstream access](nse-akami-block.md) — NSE is Akamai-blocked from this runtime; keep option-chain and quote fallbacks available.

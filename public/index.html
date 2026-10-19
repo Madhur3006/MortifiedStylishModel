@@ -1,0 +1,1058 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ONGC Live Institutional Dashboard</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root { --neon-blue: #22d3ee; --neon-pink: #e879f9; --neon-green: #34d399; --neon-amber: #fbbf24; }
+  body { background: #09090b; color: #f4f4f5; font-family: 'Inter', system-ui, sans-serif; }
+  .glass { background: rgba(24,24,27,0.85); border: 1px solid rgba(63,63,70,0.7); backdrop-filter: blur(14px); border-radius: 1rem; }
+  .neon-blue { color: var(--neon-blue); text-shadow: 0 0 12px rgba(34,211,238,0.5); }
+  .neon-pink { color: var(--neon-pink); text-shadow: 0 0 12px rgba(232,121,249,0.5); }
+  .pulse { animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{ opacity:1; } 50%{ opacity:0.4; } }
+  .tick-up { color: #34d399; }
+  .tick-down { color: #f43f5e; }
+  .tick-neutral { color: #a1a1aa; }
+  .sr-bar { height: 6px; border-radius: 3px; }
+  #priceChart { width: 100%; height: 320px; }
+  #rsiChart { width: 100%; height: 120px; }
+  .badge-live { background: rgba(52,211,153,0.15); border: 1px solid #34d399; color: #34d399; font-size: 0.65rem; padding: 2px 8px; border-radius: 999px; letter-spacing: 0.1em; }
+  .badge-closed { background: rgba(244,63,94,0.15); border: 1px solid #f43f5e; color: #f43f5e; font-size: 0.65rem; padding: 2px 8px; border-radius: 999px; letter-spacing: 0.1em; }
+  .badge-premarket { background: rgba(251,191,36,0.15); border: 1px solid #fbbf24; color: #fbbf24; font-size: 0.65rem; padding: 2px 8px; border-radius: 999px; letter-spacing: 0.1em; }
+  .spinner { border: 2px solid rgba(255,255,255,0.1); border-top: 2px solid #22d3ee; border-radius: 50%; width: 14px; height: 14px; animation: spin 0.8s linear infinite; display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .error-chip { background: rgba(244,63,94,0.1); border: 1px solid rgba(244,63,94,0.3); color: #f43f5e; font-size: 0.7rem; padding: 2px 8px; border-radius: 4px; }
+  .data-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid rgba(63,63,70,0.4); font-size: 0.82rem; }
+  .data-row:last-child { border-bottom: none; }
+  .sr-level { display: flex; justify-content: space-between; align-items: center; padding: 5px 10px; border-radius: 6px; margin-bottom: 4px; font-size: 0.8rem; font-weight: 600; }
+  .sr-r { background: rgba(244,63,94,0.12); border-left: 3px solid #f43f5e; color: #fca5a5; }
+  .sr-s { background: rgba(52,211,153,0.12); border-left: 3px solid #34d399; color: #6ee7b7; }
+  .sr-p { background: rgba(251,191,36,0.12); border-left: 3px solid #fbbf24; color: #fde68a; }
+  .sr-spot { background: rgba(34,211,238,0.12); border-left: 3px solid #22d3ee; color: #67e8f9; }
+  .oi-bar-call { background: linear-gradient(90deg, rgba(244,63,94,0.6), rgba(244,63,94,0.2)); }
+  .oi-bar-put { background: linear-gradient(90deg, rgba(52,211,153,0.6), rgba(52,211,153,0.2)); }
+  .chart-section { position: relative; }
+  .overlay-msg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(9,9,11,0.75); border-radius: 0.5rem; z-index: 10; font-size: 0.85rem; color: #a1a1aa; }
+  .news-item { padding: 8px 0; border-bottom: 1px solid rgba(63,63,70,0.3); }
+  .news-item:last-child { border-bottom: none; }
+  .macro-score-bar { height: 4px; border-radius: 2px; transition: width 1s ease; }
+</style>
+</head>
+<body class="p-3 md:p-5">
+
+<div class="max-w-screen-xl mx-auto space-y-4">
+
+  <!-- HEADER -->
+  <header class="glass p-4 md:p-5">
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+      <div>
+        <h1 class="text-2xl md:text-3xl font-black neon-blue tracking-tight">ONGC LIVE DASHBOARD</h1>
+        <p class="text-zinc-400 text-xs mt-1">Institutional Trade Desk &bull; Real-Time Multi-Factor Analysis</p>
+      </div>
+      <div class="flex items-center gap-3 flex-wrap">
+        <span id="marketBadge" class="badge-closed">LOADING</span>
+        <span class="text-zinc-500 text-xs" id="lastUpdated">—</span>
+        <button onclick="refreshAll()" id="refreshBtn" class="text-xs px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-600 text-zinc-300 transition-colors flex items-center gap-1.5">
+          <svg id="refreshIcon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+          Refresh
+        </button>
+      </div>
+    </div>
+
+    <!-- KPI TILES -->
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div class="glass p-3 flex flex-col items-center justify-center bg-zinc-900/60">
+        <span class="text-xs text-zinc-400 uppercase tracking-widest font-semibold mb-1">ONGC Spot</span>
+        <span id="spotPrice" class="text-xl font-black text-cyan-400">—</span>
+        <span id="spotChange" class="text-xs mt-0.5 tick-neutral">—</span>
+      </div>
+      <div class="glass p-3 flex flex-col items-center justify-center bg-zinc-900/60">
+        <span class="text-xs text-zinc-400 uppercase tracking-widest font-semibold mb-1">Brent Crude</span>
+        <span id="brentPrice" class="text-xl font-black text-rose-400">—</span>
+        <span id="brentChange" class="text-xs mt-0.5 tick-neutral">—</span>
+      </div>
+      <div class="glass p-3 flex flex-col items-center justify-center bg-zinc-900/60">
+        <span class="text-xs text-zinc-400 uppercase tracking-widest font-semibold mb-1">USD/INR</span>
+        <span id="usdinrPrice" class="text-xl font-black text-emerald-400">—</span>
+        <span id="usdinrChange" class="text-xs mt-0.5 tick-neutral">—</span>
+      </div>
+      <div class="glass p-3 flex flex-col items-center justify-center bg-zinc-900/60">
+        <span class="text-xs text-zinc-400 uppercase tracking-widest font-semibold mb-1">India VIX</span>
+        <span id="vixPrice" class="text-xl font-black text-amber-400">—</span>
+        <span id="vixChange" class="text-xs mt-0.5 tick-neutral">—</span>
+      </div>
+      <div class="glass p-3 flex flex-col items-center justify-center bg-zinc-900/60">
+        <span class="text-xs text-zinc-400 uppercase tracking-widest font-semibold mb-1">VWAP</span>
+        <span id="vwapVal" class="text-xl font-black text-violet-400">—</span>
+        <span id="vwapStatus" class="text-xs mt-0.5 tick-neutral">—</span>
+      </div>
+      <div class="glass p-3 flex flex-col items-center justify-center bg-zinc-900/60">
+        <span class="text-xs text-zinc-400 uppercase tracking-widest font-semibold mb-1">Max Pain</span>
+        <span id="maxPainVal" class="text-xl font-black text-fuchsia-400">—</span>
+        <span id="maxPainSrc" class="text-xs mt-0.5 text-zinc-500">—</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN GRID -->
+  <div class="grid grid-cols-1 xl:grid-cols-3 gap-4">
+
+    <!-- LEFT: PRICE CHART + RSI (spans 2 cols) -->
+    <div class="xl:col-span-2 space-y-4">
+
+      <!-- CANDLESTICK CHART -->
+      <section class="glass p-4">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-base font-bold neon-pink">&#9650; ONGC Intraday Price Chart</h2>
+          <div class="flex items-center gap-2 text-xs text-zinc-400">
+            <span class="w-3 h-0.5 bg-cyan-400 inline-block"></span>SMA20
+            <span class="w-3 h-0.5 bg-fuchsia-400 inline-block"></span>VWAP
+            <span id="chartStatus" class="spinner"></span>
+          </div>
+        </div>
+        <div class="chart-section">
+          <div id="priceChart"></div>
+          <div id="chartOverlay" class="overlay-msg"><span class="spinner mr-2"></span> Loading live data...</div>
+        </div>
+        <!-- VOLUME -->
+        <div id="volumeChart" style="width:100%;height:60px;margin-top:4px;"></div>
+        <!-- RSI -->
+        <div class="mt-3">
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-xs text-zinc-400 font-semibold uppercase tracking-widest">RSI (14)</span>
+            <span id="rsiValue" class="text-xs font-bold text-zinc-300">—</span>
+          </div>
+          <div id="rsiChart"></div>
+        </div>
+      </section>
+
+      <!-- SUPPORT & RESISTANCE -->
+      <section class="glass p-4">
+        <h2 class="text-base font-bold text-amber-400 mb-3">&#9673; Dynamic Support &amp; Resistance Levels</h2>
+        <p class="text-xs text-zinc-500 mb-3">Calculated live from today's intraday OHLCV data using Standard Pivot Points + Volume-Weighted levels.</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <div class="text-xs text-zinc-400 font-semibold uppercase tracking-widest mb-2">Resistance Zones</div>
+            <div id="resistanceLevels"><div class="text-xs text-zinc-500">Loading...</div></div>
+          </div>
+          <div>
+            <div class="text-xs text-zinc-400 font-semibold uppercase tracking-widest mb-2">Support Zones</div>
+            <div id="supportLevels"><div class="text-xs text-zinc-500">Loading...</div></div>
+          </div>
+        </div>
+        <div class="mt-3 pt-3 border-t border-zinc-800">
+          <div class="text-xs text-zinc-400 font-semibold uppercase tracking-widest mb-2">Pivot &amp; Spot Position</div>
+          <div id="pivotRow" class="text-xs text-zinc-500">Loading...</div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- RIGHT COLUMN -->
+    <div class="space-y-4">
+
+      <!-- MACRO FACTOR RADAR -->
+      <section class="glass p-4">
+        <h2 class="text-base font-bold text-emerald-400 mb-3">&#127757; Live Macro Pressure Index</h2>
+        <div id="macroFactors" class="space-y-3">
+          <div class="text-xs text-zinc-500">Loading live macro data...</div>
+        </div>
+        <div class="mt-3">
+          <canvas id="radarChart" height="220"></canvas>
+        </div>
+      </section>
+
+      <!-- OPTION CHAIN / MAX PAIN -->
+      <section class="glass p-4">
+        <h2 class="text-base font-bold neon-pink mb-3">&#9878; Option Chain Analytics</h2>
+        <div id="ocData" class="text-xs text-zinc-500">NSE option chain disconnected. Using pivot-based estimate.</div>
+        <div id="pcr-row" class="hidden data-row mt-2">
+          <span class="text-zinc-400">Put/Call Ratio (OI)</span>
+          <span id="pcrVal" class="font-bold text-amber-400">—</span>
+        </div>
+        <div id="oi-chart-wrap" class="hidden mt-3">
+          <div class="text-xs text-zinc-400 mb-2 font-semibold uppercase tracking-widest">Top OI Strikes — Calls vs Puts</div>
+          <div id="oiBarChart"></div>
+        </div>
+      </section>
+
+      <!-- LIVE TECHNICAL SIGNALS -->
+      <section class="glass p-4">
+        <h2 class="text-base font-bold text-violet-400 mb-3">&#128201; Live Technical Signals</h2>
+        <div id="techSignals" class="space-y-1">
+          <div class="text-xs text-zinc-500">Computing indicators...</div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <!-- BOTTOM: TRADER ASSESSMENT -->
+  <section class="glass p-5 border-l-4 border-fuchsia-500 bg-gradient-to-r from-zinc-900 to-zinc-800/60">
+    <div class="flex flex-wrap items-start justify-between gap-4">
+      <div class="flex-1 min-w-64">
+        <h2 class="text-xl font-bold text-white mb-2">&#9889; Live Trader Assessment</h2>
+        <p id="traderAssessment" class="text-zinc-300 text-sm leading-relaxed">Analyzing live data...</p>
+        <p class="text-xs text-zinc-500 mt-3 font-mono">DISCLAIMER: Institutional data flow analysis. Not individual financial advice. Data may be delayed 15 min.</p>
+      </div>
+      <div class="flex flex-col gap-2 min-w-48">
+        <div class="text-xs text-zinc-400 uppercase tracking-widest font-semibold mb-1">Intraday Bias</div>
+        <div id="biasMeter" class="glass bg-zinc-900/60 p-3 rounded-lg text-center">
+          <div id="biasLabel" class="text-2xl font-black text-zinc-400">—</div>
+          <div id="biasReason" class="text-xs text-zinc-500 mt-1">—</div>
+        </div>
+        <div class="glass bg-zinc-900/60 p-3 rounded-lg">
+          <div class="text-xs text-zinc-400 mb-1">Gamma Squeeze Prob.</div>
+          <div id="gammaProb" class="text-lg font-bold text-violet-400">—</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- AUTO REFRESH STATUS BAR -->
+  <div class="flex items-center justify-between text-xs text-zinc-600 px-1">
+    <span>Data: Yahoo Finance • Computed Indicators</span>
+    <span id="nextRefresh">Auto-refresh in <span id="countdown">30</span>s</span>
+  </div>
+
+</div>
+
+<script>
+// ─── GLOBAL ERROR GUARD ───────────────────────────────────────────────────────
+// Lightweight Charts throws non-Error strings internally; without this the
+// Replit iframe sees an unhandled error and shows the "crashed" state.
+window.onerror = function(msg, src, line, col, err) {
+  console.warn('[Dashboard] Caught global error:', msg, err || '(non-Error)');
+  return true; // suppress default handling / Replit crash screen
+};
+window.addEventListener('unhandledrejection', function(e) {
+  console.warn('[Dashboard] Unhandled promise rejection:', e.reason);
+  e.preventDefault();
+});
+
+// ─── CONFIG ───────────────────────────────────────────────────────────────────
+const SYMBOLS = {
+  ongc:   'ONGC.NS',
+  brent:  'BZ=F',
+  usdinr: 'USDINR=X',
+  vix:    '^INDIAVIX',
+  nifty:  '^NSEI'
+};
+const REFRESH_INTERVAL = 30; // seconds
+let countdownVal = REFRESH_INTERVAL;
+let countdownTimer = null;
+let refreshTimer = null;
+
+// Chart instances
+let lwChart = null, lwSeries = null, lwVolSeries = null, lwSma = null, lwVwap = null;
+let rsiChartInst = null, rsiLineSeries = null;
+let radarChartInst = null;
+
+// Global state
+let state = {
+  ongc: null,
+  brent: null,
+  usdinr: null,
+  vix: null,
+  optionChain: null,
+};
+
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
+function fmt(v, d=2) { return v != null && !isNaN(v) ? Number(v).toFixed(d) : '—'; }
+function fmtINR(v) { return v != null ? '₹' + fmt(v) : '—'; }
+function fmtUSD(v) { return v != null ? '$' + fmt(v) : '—'; }
+function pct(v) { return v != null ? (v >= 0 ? '+' : '') + fmt(v) + '%' : '—'; }
+function tickClass(v) { return v > 0 ? 'tick-up' : v < 0 ? 'tick-down' : 'tick-neutral'; }
+
+// ─── MARKET STATUS ─────────────────────────────────────────────────────────────
+function getMarketStatus() {
+  const now = new Date();
+  // IST = UTC+5:30
+  const ist = new Date(now.getTime() + (5*60 + 30)*60*1000);
+  const h = ist.getUTCHours(), m = ist.getUTCMinutes(), day = ist.getUTCDay();
+  const mins = h*60 + m;
+  if (day === 0 || day === 6) return { status: 'CLOSED', label: 'WEEKEND', cls: 'badge-closed' };
+  if (mins >= 9*60+15 && mins <= 15*60+30) return { status: 'OPEN', label: 'LIVE', cls: 'badge-live' };
+  if (mins >= 9*60 && mins < 9*60+15) return { status: 'PREMARKET', label: 'PRE-OPEN', cls: 'badge-premarket' };
+  return { status: 'CLOSED', label: 'CLOSED', cls: 'badge-closed' };
+}
+
+function updateMarketBadge() {
+  const ms = getMarketStatus();
+  const el = document.getElementById('marketBadge');
+  el.textContent = ms.label;
+  el.className = ms.cls;
+  if (ms.label === 'LIVE') el.innerHTML = '<span class="pulse inline-block w-1.5 h-1.5 rounded-full bg-green-400 mr-1"></span>' + ms.label;
+}
+
+// ─── FETCH VIA BACKEND API ────────────────────────────────────────────────────
+async function fetchYF(symbol, interval='5m', range='1d') {
+  try {
+    const res = await fetch(`/api/quote/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}`);
+    if (!res.ok) throw new Error(`API returned ${res.status}`);
+    return await res.json();
+  } catch(e) {
+    console.warn('fetchYF failed for', symbol, e.message);
+    return null;
+  }
+}
+
+// ─── PARSE YAHOO FINANCE RESPONSE ─────────────────────────────────────────────
+function parseYF(data) {
+  if (!data?.chart?.result?.[0]) return null;
+  const r = data.chart.result[0];
+  const meta = r.meta;
+  const ts = r.timestamp || [];
+  const q = r.indicators?.quote?.[0] || {};
+  const opens = q.open || [], highs = q.high || [], lows = q.low || [];
+  const closes = q.close || [], vols = q.volume || [];
+
+  const seenTimes = new Set();
+  const candles = [];
+  for (let i = 0; i < ts.length; i++) {
+    if (closes[i] == null) continue;
+    if (seenTimes.has(ts[i])) continue;   // deduplicate timestamps
+    seenTimes.add(ts[i]);
+    candles.push({
+      time: ts[i],
+      open: opens[i] ?? closes[i],
+      high: highs[i] ?? closes[i],
+      low: lows[i] ?? closes[i],
+      close: closes[i],
+      volume: vols[i] ?? 0
+    });
+  }
+  candles.sort((a, b) => a.time - b.time);  // ensure ascending order
+
+  const price = meta.regularMarketPrice;
+  const prev = meta.chartPreviousClose || meta.previousClose;
+  const change = price - prev;
+  const changePct = (change / prev) * 100;
+
+  return { meta, candles, price, prev, change, changePct,
+    dayHigh: meta.regularMarketDayHigh,
+    dayLow: meta.regularMarketDayLow,
+    open: meta.regularMarketOpen,
+    volume: meta.regularMarketVolume,
+    currency: meta.currency };
+}
+
+// ─── TECHNICAL INDICATORS ─────────────────────────────────────────────────────
+function calcSMA(candles, period) {
+  const result = [];
+  for (let i = 0; i < candles.length; i++) {
+    if (i < period - 1) { result.push(null); continue; }
+    let sum = 0;
+    for (let j = i - period + 1; j <= i; j++) sum += candles[j].close;
+    result.push({ time: candles[i].time, value: sum / period });
+  }
+  return result.filter(x => x !== null);
+}
+
+function calcVWAP(candles) {
+  let cumPV = 0, cumV = 0;
+  return candles.map(c => {
+    const tp = (c.high + c.low + c.close) / 3;
+    cumPV += tp * c.volume;
+    cumV += c.volume;
+    return { time: c.time, value: cumV > 0 ? cumPV / cumV : c.close };
+  });
+}
+
+function calcRSI(candles, period=14) {
+  if (candles.length < period + 1) return [];
+  const result = [];
+  let gains = 0, losses = 0;
+  for (let i = 1; i <= period; i++) {
+    const d = candles[i].close - candles[i-1].close;
+    if (d >= 0) gains += d; else losses -= d;
+  }
+  let avgGain = gains / period, avgLoss = losses / period;
+  const push = (i) => {
+    const rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
+    result.push({ time: candles[i].time, value: 100 - 100 / (1 + rs) });
+  };
+  push(period);
+  for (let i = period + 1; i < candles.length; i++) {
+    const d = candles[i].close - candles[i-1].close;
+    const g = d >= 0 ? d : 0, l = d < 0 ? -d : 0;
+    avgGain = (avgGain * (period-1) + g) / period;
+    avgLoss = (avgLoss * (period-1) + l) / period;
+    push(i);
+  }
+  return result;
+}
+
+function calcPivotPoints(high, low, close) {
+  const P = (high + low + close) / 3;
+  return {
+    P,
+    R1: 2*P - low,
+    R2: P + (high - low),
+    R3: high + 2*(P - low),
+    S1: 2*P - high,
+    S2: P - (high - low),
+    S3: low - 2*(high - P)
+  };
+}
+
+function calcBollingerBands(candles, period=20, stdDev=2) {
+  const bands = [];
+  for (let i = period - 1; i < candles.length; i++) {
+    const slice = candles.slice(i - period + 1, i + 1).map(c => c.close);
+    const mean = slice.reduce((a,b)=>a+b,0) / period;
+    const variance = slice.reduce((a,b)=>a+(b-mean)**2,0) / period;
+    const sd = Math.sqrt(variance);
+    bands.push({ time: candles[i].time, upper: mean + stdDev*sd, mid: mean, lower: mean - stdDev*sd });
+  }
+  return bands;
+}
+
+// ─── CHART INIT ───────────────────────────────────────────────────────────────
+function initPriceChart() {
+  const el = document.getElementById('priceChart');
+  el.innerHTML = '';
+  lwChart = LightweightCharts.createChart(el, {
+    width: el.clientWidth,
+    height: 320,
+    layout: { background: { color: 'transparent' }, textColor: '#a1a1aa' },
+    grid: { vertLines: { color: 'rgba(63,63,70,0.4)' }, horzLines: { color: 'rgba(63,63,70,0.4)' } },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+    rightPriceScale: { borderColor: 'rgba(63,63,70,0.5)' },
+    timeScale: { borderColor: 'rgba(63,63,70,0.5)', timeVisible: true, secondsVisible: false },
+  });
+  lwSeries = lwChart.addCandlestickSeries({
+    upColor: '#34d399', downColor: '#f43f5e',
+    borderUpColor: '#34d399', borderDownColor: '#f43f5e',
+    wickUpColor: '#34d399', wickDownColor: '#f43f5e',
+  });
+  lwSma = lwChart.addLineSeries({ color: '#22d3ee', lineWidth: 1, priceLineVisible: false });
+  lwVwap = lwChart.addLineSeries({ color: '#e879f9', lineWidth: 1.5, lineStyle: LightweightCharts.LineStyle.Dashed, priceLineVisible: false });
+
+  const volEl = document.getElementById('volumeChart');
+  volEl.innerHTML = '';
+  const volChart = LightweightCharts.createChart(volEl, {
+    width: volEl.clientWidth, height: 60,
+    layout: { background: { color: 'transparent' }, textColor: '#a1a1aa' },
+    grid: { vertLines: { color: 'transparent' }, horzLines: { color: 'transparent' } },
+    rightPriceScale: { borderColor: 'transparent', visible: false },
+    timeScale: { borderColor: 'transparent', visible: false },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+  });
+  lwVolSeries = volChart.addHistogramSeries({
+    priceFormat: { type: 'volume' },
+    priceScaleId: '',
+  });
+  volChart.priceScale('').applyOptions({ scaleMargins: { top: 0.1, bottom: 0 } });
+
+  const rsiEl = document.getElementById('rsiChart');
+  rsiEl.innerHTML = '';
+  rsiChartInst = LightweightCharts.createChart(rsiEl, {
+    width: rsiEl.clientWidth, height: 120,
+    layout: { background: { color: 'transparent' }, textColor: '#a1a1aa' },
+    grid: { vertLines: { color: 'rgba(63,63,70,0.3)' }, horzLines: { color: 'rgba(63,63,70,0.2)' } },
+    rightPriceScale: { borderColor: 'rgba(63,63,70,0.5)' },
+    timeScale: { borderColor: 'rgba(63,63,70,0.5)', timeVisible: true, secondsVisible: false },
+  });
+  rsiLineSeries = rsiChartInst.addLineSeries({ color: '#fbbf24', lineWidth: 2, priceLineVisible: false });
+  // Overbought/oversold lines
+  const ob = rsiChartInst.addLineSeries({ color: 'rgba(244,63,94,0.4)', lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, priceLineVisible: false });
+  const os = rsiChartInst.addLineSeries({ color: 'rgba(52,211,153,0.4)', lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, priceLineVisible: false });
+
+  window.__rsiOB = ob; window.__rsiOS = os;
+  window.addEventListener('resize', () => {
+    lwChart?.applyOptions({ width: el.clientWidth });
+    volChart?.applyOptions({ width: volEl.clientWidth });
+    rsiChartInst?.applyOptions({ width: rsiEl.clientWidth });
+  });
+}
+
+function updatePriceChart(parsed) {
+  if (!parsed || !lwSeries) return;
+  const { candles } = parsed;
+  if (candles.length === 0) return;
+
+  try {
+    const cdData = candles.map(c => ({ time: c.time, open: c.open, high: c.high, low: c.low, close: c.close }));
+    lwSeries.setData(cdData);
+  } catch(e) { console.warn('lwSeries.setData failed:', e); }
+
+  try {
+    const volData = candles.map(c => ({
+      time: c.time, value: c.volume,
+      color: c.close >= c.open ? 'rgba(52,211,153,0.5)' : 'rgba(244,63,94,0.5)'
+    }));
+    lwVolSeries.setData(volData);
+  } catch(e) { console.warn('lwVolSeries.setData failed:', e); }
+
+  try {
+    const smaData = calcSMA(candles, 20);
+    lwSma.setData(smaData);
+  } catch(e) { console.warn('lwSma.setData failed:', e); }
+
+  try {
+    const vwapData = calcVWAP(candles);
+    lwVwap.setData(vwapData);
+  } catch(e) { console.warn('lwVwap.setData failed:', e); }
+
+  const rsiData = calcRSI(candles, 14);
+  try {
+    rsiLineSeries.setData(rsiData);
+  } catch(e) { console.warn('rsiLineSeries.setData failed:', e); }
+
+  if (rsiData.length >= 2) {
+    // need at least 2 distinct timestamps for the OB/OS reference lines
+    const firstTime = rsiData[0].time;
+    const lastTime  = rsiData[rsiData.length - 1].time;
+    try {
+      window.__rsiOB.setData([{ time: firstTime, value: 70 }, { time: lastTime, value: 70 }]);
+      window.__rsiOS.setData([{ time: firstTime, value: 30 }, { time: lastTime, value: 30 }]);
+    } catch(e) { console.warn('RSI OB/OS lines failed:', e); }
+  }
+
+  if (rsiData.length > 0) {
+    const lastRSI = rsiData[rsiData.length - 1].value;
+    const rsiEl = document.getElementById('rsiValue');
+    rsiEl.textContent = fmt(lastRSI);
+    rsiEl.className = lastRSI > 70 ? 'text-xs font-bold text-rose-400' : lastRSI < 30 ? 'text-xs font-bold text-green-400' : 'text-xs font-bold text-amber-400';
+  }
+
+  document.getElementById('chartOverlay').style.display = 'none';
+  document.getElementById('chartStatus').style.display = 'none';
+  try { lwChart.timeScale().fitContent(); } catch(e) { console.warn('fitContent failed:', e); }
+}
+
+// ─── UPDATE KPI TILES ─────────────────────────────────────────────────────────
+function updateTile(idPrice, idChange, price, changePct, formatter) {
+  const pel = document.getElementById(idPrice);
+  const cel = document.getElementById(idChange);
+  if (price != null) {
+    pel.textContent = formatter(price);
+    pel.classList.add('transition-all');
+  }
+  if (changePct != null) {
+    cel.textContent = pct(changePct);
+    cel.className = 'text-xs mt-0.5 ' + tickClass(changePct);
+  }
+}
+
+// ─── SUPPORT & RESISTANCE ─────────────────────────────────────────────────────
+function updateSR(parsed) {
+  if (!parsed) return;
+  const { dayHigh, dayLow, candles, price } = parsed;
+  const prevClose = parsed.prev;
+
+  const pp = calcPivotPoints(dayHigh || candles.reduce((m,c)=>Math.max(m,c.high), -Infinity),
+                              dayLow  || candles.reduce((m,c)=>Math.min(m,c.low), Infinity),
+                              prevClose);
+
+  const spot = price;
+  const levels = [
+    { label: 'R3 (Extreme)', val: pp.R3, type: 'r', note: 'Gamma squeeze zone' },
+    { label: 'R2 (Strong Resist)', val: pp.R2, type: 'r', note: 'Pivot Range Top' },
+    { label: 'R1 (First Resist)', val: pp.R1, type: 'r', note: 'Intraday supply' },
+    { label: 'Pivot Point (P)', val: pp.P, type: 'p', note: 'Daily equilibrium' },
+    { label: 'S1 (First Support)', val: pp.S1, type: 's', note: 'Intraday demand' },
+    { label: 'S2 (Strong Support)', val: pp.S2, type: 's', note: 'Pivot Range Bottom' },
+    { label: 'S3 (Extreme Support)', val: pp.S3, type: 's', note: 'Capitulation zone' },
+  ].map(l => ({ ...l, dist: ((l.val - spot)/spot*100) }));
+
+  const resLevels = levels.filter(l => l.type === 'r').sort((a,b) => a.val - b.val);
+  const supLevels = levels.filter(l => l.type === 's').sort((a,b) => b.val - a.val);
+  const pivot = levels.find(l => l.type === 'p');
+
+  const renderLevel = (l) => {
+    const cls = l.type === 'r' ? 'sr-r' : l.type === 's' ? 'sr-s' : 'sr-p';
+    const aboveSp = l.val > spot;
+    return `<div class="sr-level ${cls}">
+      <div>
+        <div>${l.label}</div>
+        <div class="text-xs opacity-60">${l.note}</div>
+      </div>
+      <div class="text-right">
+        <div>₹${fmt(l.val)}</div>
+        <div class="text-xs opacity-70">${aboveSp?'+':''}${fmt(l.dist)}%</div>
+      </div>
+    </div>`;
+  };
+
+  document.getElementById('resistanceLevels').innerHTML = resLevels.map(renderLevel).join('');
+  document.getElementById('supportLevels').innerHTML = supLevels.map(renderLevel).join('');
+
+  const spotVsPivot = spot > pp.P ? 'ABOVE' : 'BELOW';
+  const spCls = spot > pp.P ? 'text-green-400' : 'text-rose-400';
+  document.getElementById('pivotRow').innerHTML = `
+    <div class="grid grid-cols-3 gap-2">
+      <div class="glass bg-zinc-900/60 p-2 rounded-lg text-center">
+        <div class="text-zinc-400 text-xs">Pivot (P)</div>
+        <div class="font-bold text-amber-400">₹${fmt(pp.P)}</div>
+      </div>
+      <div class="glass bg-zinc-900/60 p-2 rounded-lg text-center">
+        <div class="text-zinc-400 text-xs">Spot</div>
+        <div class="font-bold text-cyan-400">₹${fmt(spot)}</div>
+      </div>
+      <div class="glass bg-zinc-900/60 p-2 rounded-lg text-center">
+        <div class="text-zinc-400 text-xs">Position</div>
+        <div class="font-bold ${spCls}">${spotVsPivot}</div>
+      </div>
+    </div>`;
+}
+
+// ─── VWAP ─────────────────────────────────────────────────────────────────────
+function updateVWAP(parsed) {
+  if (!parsed?.candles?.length) return;
+  const vwapArr = calcVWAP(parsed.candles);
+  const lastVwap = vwapArr[vwapArr.length-1]?.value;
+  if (!lastVwap) return;
+  const spot = parsed.price;
+  document.getElementById('vwapVal').textContent = '₹' + fmt(lastVwap);
+  const abv = spot > lastVwap;
+  const vwapStatus = document.getElementById('vwapStatus');
+  vwapStatus.textContent = abv ? 'Above VWAP ↑' : 'Below VWAP ↓';
+  vwapStatus.className = 'text-xs mt-0.5 ' + (abv ? 'tick-up' : 'tick-down');
+}
+
+// ─── MACRO FACTORS ────────────────────────────────────────────────────────────
+function updateMacroFactors() {
+  const brent = state.brent;
+  const usdinr = state.usdinr;
+  const vix = state.vix;
+  const ongc = state.ongc;
+
+  if (!brent && !usdinr && !vix) {
+    document.getElementById('macroFactors').innerHTML = '<div class="text-xs text-zinc-500">Awaiting data...</div>';
+    return;
+  }
+
+  const brentP = brent?.price;
+  const usdinrP = usdinr?.price;
+  const vixP = vix?.price;
+
+  // Score each factor 0-100
+  const factors = [];
+
+  if (brentP != null) {
+    const brentScore = Math.min(100, Math.max(0, (brentP - 60) / 60 * 100));
+    const brentLabel = brentP > 100 ? 'Policy Fear Zone' : brentP > 85 ? 'Elevated' : 'Normal';
+    factors.push({ label: 'Brent Crude Bullishness', val: fmt(brentP, 2), unit:'$', score: brentScore, color: brentP > 100 ? '#f43f5e' : brentP > 85 ? '#fbbf24' : '#34d399', note: brentLabel });
+  }
+
+  if (usdinrP != null) {
+    const inrScore = Math.min(100, Math.max(0, (usdinrP - 75) / 30 * 100));
+    const inrLabel = usdinrP > 90 ? 'Strong INR Tailwind' : usdinrP > 83 ? 'Moderate Tailwind' : 'Minimal';
+    factors.push({ label: 'USD/INR Depreciation', val: fmt(usdinrP, 2), unit:'', score: inrScore, color: usdinrP > 90 ? '#34d399' : '#fbbf24', note: inrLabel });
+  }
+
+  if (vixP != null) {
+    const vixScore = Math.min(100, Math.max(0, vixP / 40 * 100));
+    const vixLabel = vixP > 25 ? 'High Dealer Hedging' : vixP > 17 ? 'Elevated Hedging' : 'Low Volatility';
+    factors.push({ label: 'India VIX / Dealer Hedging', val: fmt(vixP, 2), unit:'', score: vixScore, color: vixP > 25 ? '#f43f5e' : vixP > 17 ? '#fbbf24' : '#34d399', note: vixLabel });
+  }
+
+  // ONGC performance
+  if (ongc != null) {
+    const pctChg = ongc.changePct;
+    const ongcScore = Math.min(100, Math.max(0, 50 + pctChg * 10));
+    factors.push({ label: 'ONGC Momentum', val: (pctChg >= 0 ? '+' : '') + fmt(pctChg, 2) + '%', unit:'', score: ongcScore, color: pctChg > 0 ? '#34d399' : '#f43f5e', note: pctChg > 1 ? 'Bullish Momentum' : pctChg < -1 ? 'Bearish Pressure' : 'Sideways/Consolidating' });
+  }
+
+  const windfall = brentP != null && brentP > 100 ? 70 : brentP != null && brentP > 85 ? 40 : 20;
+  factors.push({ label: 'Windfall Tax Probability', val: windfall + '%', unit:'', score: windfall, color: windfall > 60 ? '#f43f5e' : windfall > 40 ? '#fbbf24' : '#34d399', note: windfall > 60 ? 'High Policy Risk' : 'Moderate Risk' });
+
+  document.getElementById('macroFactors').innerHTML = factors.map(f => `
+    <div>
+      <div class="flex justify-between items-center mb-1">
+        <span class="text-xs text-zinc-300 font-semibold">${f.label}</span>
+        <div class="text-right">
+          <span class="text-xs font-bold" style="color:${f.color}">${f.val}${f.unit}</span>
+          <span class="text-xs text-zinc-500 ml-1">${f.note}</span>
+        </div>
+      </div>
+      <div class="h-1 bg-zinc-800 rounded-full">
+        <div class="macro-score-bar h-1 rounded-full" style="width:${f.score}%;background:${f.color}"></div>
+      </div>
+    </div>
+  `).join('');
+
+  // Update radar chart
+  updateRadar(factors);
+}
+
+// ─── RADAR CHART ──────────────────────────────────────────────────────────────
+function updateRadar(factors) {
+  const labels = factors.map(f => f.label.split(' ').slice(0,2).join(' '));
+  const data = factors.map(f => f.score);
+  const ctx = document.getElementById('radarChart').getContext('2d');
+
+  if (radarChartInst) { radarChartInst.destroy(); }
+  radarChartInst = new Chart(ctx, {
+    type: 'radar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Pressure Index',
+        data,
+        backgroundColor: 'rgba(34,211,238,0.15)',
+        borderColor: '#22d3ee',
+        pointBackgroundColor: '#e879f9',
+        pointBorderColor: '#fff',
+        borderWidth: 2,
+      }]
+    },
+    options: {
+      maintainAspectRatio: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        r: {
+          angleLines: { color: 'rgba(63,63,70,0.6)' },
+          grid: { color: 'rgba(63,63,70,0.4)' },
+          pointLabels: { color: '#d4d4d8', font: { size: 10 } },
+          ticks: { display: false, min: 0, max: 100 }
+        }
+      }
+    }
+  });
+}
+
+// ─── OPTION CHAIN ─────────────────────────────────────────────────────────────
+function parseOptionChain(data, spot) {
+  if (!data?.records?.data) return null;
+  const rows = data.records.data;
+  const strikeMap = {};
+  rows.forEach(row => {
+    const s = row.strikePrice;
+    if (!strikeMap[s]) strikeMap[s] = { strike: s, callOI: 0, putOI: 0 };
+    if (row.CE) strikeMap[s].callOI += row.CE.openInterest || 0;
+    if (row.PE) strikeMap[s].putOI += row.PE.openInterest || 0;
+  });
+
+  const strikes = Object.values(strikeMap).sort((a,b) => a.strike - b.strike);
+  if (strikes.length === 0) return null;
+
+  // Max pain: find strike that minimizes total payout
+  let minPain = Infinity, maxPainStrike = spot;
+  strikes.forEach(target => {
+    let totalPayout = 0;
+    strikes.forEach(s => {
+      if (s.strike < target.strike) totalPayout += s.callOI * (target.strike - s.strike) * 100;
+      if (s.strike > target.strike) totalPayout += s.putOI * (s.strike - target.strike) * 100;
+    });
+    if (totalPayout < minPain) { minPain = totalPayout; maxPainStrike = target.strike; }
+  });
+
+  // PCR
+  const totalCallOI = strikes.reduce((s,r) => s + r.callOI, 0);
+  const totalPutOI  = strikes.reduce((s,r) => s + r.putOI, 0);
+  const pcr = totalCallOI > 0 ? (totalPutOI / totalCallOI) : null;
+
+  // Top strikes around ATM — guard against empty strikes
+  const atmStrike = strikes.reduce((best, s) =>
+    Math.abs(s.strike - spot) < Math.abs(best.strike - spot) ? s : best
+  , strikes[0]);
+  const atmIdx = strikes.indexOf(atmStrike);
+  const topStrikes = strikes.slice(Math.max(0, atmIdx - 4), atmIdx + 5);
+
+  return { maxPainStrike, pcr, topStrikes, totalCallOI, totalPutOI };
+}
+
+function updateOptionChain() {
+  const oc = state.optionChain;
+  const spot = state.ongc?.price;
+  if (!oc || !spot) {
+    document.getElementById('ocData').textContent = 'NSE option chain disconnected. Displaying calculated max pain from pivot.';
+    return;
+  }
+  const parsed = parseOptionChain(oc, spot);
+  if (!parsed) return;
+
+  document.getElementById('maxPainVal').textContent = '₹' + fmt(parsed.maxPainStrike);
+  document.getElementById('maxPainSrc').textContent = 'NSE Live';
+
+  document.getElementById('ocData').innerHTML = `
+    <div class="grid grid-cols-2 gap-2 mb-2">
+      <div class="glass bg-zinc-900/60 p-2 rounded-lg text-center">
+        <div class="text-xs text-zinc-400">Total Call OI</div>
+        <div class="font-bold text-rose-400">${(parsed.totalCallOI/100000).toFixed(1)}L</div>
+      </div>
+      <div class="glass bg-zinc-900/60 p-2 rounded-lg text-center">
+        <div class="text-xs text-zinc-400">Total Put OI</div>
+        <div class="font-bold text-green-400">${(parsed.totalPutOI/100000).toFixed(1)}L</div>
+      </div>
+    </div>`;
+
+  document.getElementById('pcr-row').classList.remove('hidden');
+  const pcrV = parsed.pcr;
+  const pcrEl = document.getElementById('pcrVal');
+  pcrEl.textContent = fmt(pcrV, 2);
+  pcrEl.className = pcrV > 1.2 ? 'font-bold text-green-400' : pcrV < 0.8 ? 'font-bold text-rose-400' : 'font-bold text-amber-400';
+
+  document.getElementById('oi-chart-wrap').classList.remove('hidden');
+  const maxOI = Math.max(...parsed.topStrikes.map(s => Math.max(s.callOI, s.putOI)));
+  document.getElementById('oiBarChart').innerHTML = parsed.topStrikes.map(s => {
+    const callW = maxOI > 0 ? (s.callOI / maxOI * 100) : 0;
+    const putW  = maxOI > 0 ? (s.putOI  / maxOI * 100) : 0;
+    const isAtm = Math.abs(s.strike - spot) < 2.5;
+    return `<div class="mb-1.5 ${isAtm?'opacity-100':'opacity-70'}">
+      <div class="flex justify-between text-xs text-zinc-400 mb-0.5">
+        <span class="text-rose-400">${(s.callOI/100000).toFixed(1)}L C</span>
+        <span class="${isAtm?'text-cyan-400 font-bold':'text-zinc-300'}">₹${s.strike}</span>
+        <span class="text-green-400">${(s.putOI/100000).toFixed(1)}L P</span>
+      </div>
+      <div class="flex gap-1 items-center">
+        <div class="flex-1 flex justify-end">
+          <div class="oi-bar-call sr-bar" style="width:${callW}%;min-width:2px"></div>
+        </div>
+        <div class="w-0.5 h-4 bg-zinc-600 flex-shrink-0"></div>
+        <div class="flex-1">
+          <div class="oi-bar-put sr-bar" style="width:${putW}%;min-width:2px"></div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ─── TECHNICAL SIGNALS ────────────────────────────────────────────────────────
+function updateTechSignals(parsed) {
+  if (!parsed?.candles?.length) return;
+  const { candles, price, dayHigh, dayLow, prev } = parsed;
+
+  const rsiArr = calcRSI(candles, 14);
+  const rsi = rsiArr[rsiArr.length-1]?.value;
+
+  const sma20Arr = calcSMA(candles, 20);
+  const sma20 = sma20Arr[sma20Arr.length-1]?.value;
+
+  const sma50Arr = calcSMA(candles, 50);
+  const sma50 = sma50Arr[sma50Arr.length-1]?.value;
+
+  const vwapArr = calcVWAP(candles);
+  const vwap = vwapArr[vwapArr.length-1]?.value;
+
+  const bbands = calcBollingerBands(candles, 20);
+  const lastBB = bbands[bbands.length-1];
+
+  const signals = [];
+
+  if (rsi != null) {
+    const sig = rsi > 70 ? { text: 'Overbought', cls: 'tick-down', sym: '↓' } : rsi < 30 ? { text: 'Oversold', cls: 'tick-up', sym: '↑' } : { text: 'Neutral', cls: 'tick-neutral', sym: '→' };
+    signals.push({ label: `RSI (14): ${fmt(rsi)}`, ...sig });
+  }
+  if (sma20 != null) {
+    const abv = price > sma20;
+    signals.push({ label: `SMA 20: ₹${fmt(sma20)}`, text: abv ? 'Price Above SMA20' : 'Price Below SMA20', cls: abv ? 'tick-up' : 'tick-down', sym: abv ? '↑' : '↓' });
+  }
+  if (sma50 != null) {
+    const abv = price > sma50;
+    signals.push({ label: `SMA 50: ₹${fmt(sma50)}`, text: abv ? 'Price Above SMA50' : 'Price Below SMA50', cls: abv ? 'tick-up' : 'tick-down', sym: abv ? '↑' : '↓' });
+  }
+  if (vwap != null) {
+    const abv = price > vwap;
+    signals.push({ label: `VWAP: ₹${fmt(vwap)}`, text: abv ? 'Bullish Above VWAP' : 'Bearish Below VWAP', cls: abv ? 'tick-up' : 'tick-down', sym: abv ? '↑' : '↓' });
+  }
+  if (lastBB) {
+    const pos = price > lastBB.upper ? 'Upper Band Breach' : price < lastBB.lower ? 'Lower Band Breach' : 'Within Bands';
+    const cls = price > lastBB.upper ? 'tick-down' : price < lastBB.lower ? 'tick-up' : 'tick-neutral';
+    signals.push({ label: `BB Width: ₹${fmt(lastBB.lower)} – ₹${fmt(lastBB.upper)}`, text: pos, cls, sym: '⊙' });
+  }
+
+  // Trend
+  if (candles.length >= 3) {
+    const last3 = candles.slice(-3).map(c => c.close);
+    const trend = last3[2] > last3[1] && last3[1] > last3[0] ? { text: 'Short-term Uptrend', cls: 'tick-up', sym: '↑' }
+                : last3[2] < last3[1] && last3[1] < last3[0] ? { text: 'Short-term Downtrend', cls: 'tick-down', sym: '↓' }
+                : { text: 'Choppy/Sideways', cls: 'tick-neutral', sym: '→' };
+    signals.push({ label: 'Recent 3-Bar Trend', ...trend });
+  }
+
+  document.getElementById('techSignals').innerHTML = signals.map(s => `
+    <div class="data-row">
+      <span class="text-zinc-400">${s.label}</span>
+      <span class="font-semibold ${s.cls}">${s.sym} ${s.text}</span>
+    </div>`).join('');
+
+  return { rsi, sma20, sma50, vwap, bbands: lastBB };
+}
+
+// ─── TRADER ASSESSMENT (DYNAMIC) ──────────────────────────────────────────────
+function updateTraderAssessment() {
+  const ongc = state.ongc;
+  const brent = state.brent;
+  const usdinr = state.usdinr;
+  const vix = state.vix;
+
+  if (!ongc) return;
+
+  const spot = ongc.price;
+  const pctChg = ongc.changePct;
+  const brentP = brent?.price;
+  const usdinrP = usdinr?.price;
+  const vixP = vix?.price;
+
+  const rsiArr = ongc.candles ? calcRSI(ongc.candles, 14) : [];
+  const rsi = rsiArr[rsiArr.length-1]?.value;
+
+  const vwapArr = ongc.candles ? calcVWAP(ongc.candles) : [];
+  const vwap = vwapArr[vwapArr.length-1]?.value;
+
+  const pp = ongc.candles ? calcPivotPoints(
+    ongc.dayHigh || ongc.candles.reduce((m,c)=>Math.max(m,c.high),-Infinity),
+    ongc.dayLow  || ongc.candles.reduce((m,c)=>Math.min(m,c.low),Infinity),
+    ongc.prev
+  ) : null;
+
+  // Bias logic
+  let bullPoints = 0, bearPoints = 0;
+  if (brentP > 100) bullPoints++;
+  if (brentP > 110) bullPoints++;
+  if (usdinrP > 85) bullPoints++;
+  if (pctChg > 0) bullPoints++;
+  if (rsi != null && rsi < 50) bullPoints += 0.5;
+  if (vwap != null && spot > vwap) bullPoints++;
+  if (pp && spot > pp.P) bullPoints++;
+
+  if (vixP > 20) bearPoints++;
+  if (brentP > 105) bearPoints += 0.5; // windfall fear
+  if (rsi != null && rsi > 65) bearPoints++;
+  if (pctChg < 0) bearPoints++;
+  if (pp && spot < pp.R1) bearPoints += 0.5;
+
+  const net = bullPoints - bearPoints;
+  const bias = net > 1.5 ? 'BULLISH' : net < -1.5 ? 'BEARISH' : 'NEUTRAL';
+  const biasCls = bias === 'BULLISH' ? 'tick-up' : bias === 'BEARISH' ? 'tick-down' : 'tick-neutral';
+  document.getElementById('biasLabel').textContent = bias;
+  document.getElementById('biasLabel').className = 'text-2xl font-black ' + (bias === 'BULLISH' ? 'text-green-400' : bias === 'BEARISH' ? 'text-rose-400' : 'text-amber-400');
+
+  const biasReason = vwap != null ? (spot > vwap ? 'Trading above VWAP' : 'Trading below VWAP') : 'Computing...';
+  document.getElementById('biasReason').textContent = biasReason;
+
+  const gammaProb = pp && spot > pp.R2 ? '45%' : pp && spot > pp.R1 ? '25%' : '12%';
+  document.getElementById('gammaProb').textContent = gammaProb;
+
+  const assessmentParts = [];
+  assessmentParts.push(`Spot ₹${fmt(spot)} ${pctChg>=0?'up':'down'} ${fmt(Math.abs(pctChg))}% today.`);
+  if (brentP) assessmentParts.push(`Brent at $${fmt(brentP)} ${brentP>105?'— policy risk elevated (Windfall Tax probability ~'+Math.round(Math.min(90,(brentP-100)*3+60))+'%)':'— within normal policy range'}.`);
+  if (usdinrP) assessmentParts.push(`USD/INR ${fmt(usdinrP)} ${usdinrP>85?'— strong INR depreciation is a bullish tailwind for ONGC realizations':'— moderate FX support'}.`);
+  if (vixP) assessmentParts.push(`India VIX ${fmt(vixP)} — ${vixP>20?'elevated, dealer delta-hedging creating chop':'controlled, trend trading viable'}.`);
+  if (rsi) assessmentParts.push(`RSI(14) at ${fmt(rsi)} — ${rsi>70?'overbought, expect pullback':rsi<30?'oversold, watch for bounce':'mid-range, directional bias from pivot levels'}.`);
+  if (pp) assessmentParts.push(`Key levels: R1 ₹${fmt(pp.R1)}, Pivot ₹${fmt(pp.P)}, S1 ₹${fmt(pp.S1)}.`);
+  assessmentParts.push(`Overall intraday bias: ${bias}.`);
+
+  document.getElementById('traderAssessment').textContent = assessmentParts.join(' ');
+}
+
+// ─── MAIN REFRESH ─────────────────────────────────────────────────────────────
+let isRefreshing = false;
+async function refreshAll() {
+  if (isRefreshing) return;
+  isRefreshing = true;
+  const btn = document.getElementById('refreshBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Refreshing...';
+
+  try {
+    updateMarketBadge();
+
+    const [ongcRaw, brentRaw, usdinrRaw, vixRaw] = await Promise.allSettled([
+      fetchYF(SYMBOLS.ongc, '5m', '1d'),
+      fetchYF(SYMBOLS.brent, '5m', '1d'),
+      fetchYF(SYMBOLS.usdinr, '5m', '1d'),
+      fetchYF(SYMBOLS.vix, '5m', '1d'),
+    ]);
+
+    const ongcData = ongcRaw.status === 'fulfilled' ? parseYF(ongcRaw.value) : null;
+    const brentData = brentRaw.status === 'fulfilled' ? parseYF(brentRaw.value) : null;
+    const usdinrData = usdinrRaw.status === 'fulfilled' ? parseYF(usdinrRaw.value) : null;
+    const vixData = vixRaw.status === 'fulfilled' ? parseYF(vixRaw.value) : null;
+    const ocData = null;
+
+    state.ongc = ongcData;
+    state.brent = brentData;
+    state.usdinr = usdinrData;
+    state.vix = vixData;
+    state.optionChain = ocData;
+
+    // Update tiles
+    if (ongcData) updateTile('spotPrice', 'spotChange', ongcData.price, ongcData.changePct, fmtINR);
+    if (brentData) updateTile('brentPrice', 'brentChange', brentData.price, brentData.changePct, fmtUSD);
+    if (usdinrData) updateTile('usdinrPrice', 'usdinrChange', usdinrData.price, usdinrData.changePct, v => fmt(v));
+    if (vixData) updateTile('vixPrice', 'vixChange', vixData.price, vixData.changePct, v => fmt(v));
+
+    // Chart
+    if (ongcData) {
+      updatePriceChart(ongcData);
+      updateSR(ongcData);
+      updateVWAP(ongcData);
+      updateTechSignals(ongcData);
+    } else {
+      document.getElementById('chartOverlay').innerHTML = '<span class="error-chip">ONGC data unavailable — market may be closed or rate limited. Will retry.</span>';
+    }
+
+    // Option chain
+    updateOptionChain();
+
+    // If no OC, use pivot-based max pain estimate
+    if (!ocData && ongcData) {
+      const pp = calcPivotPoints(
+        ongcData.dayHigh || ongcData.candles.reduce((m,c)=>Math.max(m,c.high),-Infinity),
+        ongcData.dayLow  || ongcData.candles.reduce((m,c)=>Math.min(m,c.low),Infinity),
+        ongcData.prev
+      );
+      document.getElementById('maxPainVal').textContent = '₹' + fmt(pp.P);
+      document.getElementById('maxPainSrc').textContent = 'Pivot Est.';
+    }
+
+    // Macro & assessment
+    updateMacroFactors();
+    updateTraderAssessment();
+
+    const now = new Date();
+    document.getElementById('lastUpdated').textContent = 'Updated ' + now.toLocaleTimeString('en-IN', {timeZone:'Asia/Kolkata', hour:'2-digit', minute:'2-digit', second:'2-digit'}) + ' IST';
+
+  } catch (e) {
+    console.error('Refresh error:', e);
+  } finally {
+    isRefreshing = false;
+    btn.disabled = false;
+    btn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg> Refresh`;
+  }
+}
+
+// ─── COUNTDOWN TIMER ──────────────────────────────────────────────────────────
+function startCountdown() {
+  clearInterval(countdownTimer);
+  clearInterval(refreshTimer);
+  countdownVal = REFRESH_INTERVAL;
+  document.getElementById('countdown').textContent = countdownVal;
+
+  countdownTimer = setInterval(() => {
+    countdownVal--;
+    if (countdownVal < 0) countdownVal = REFRESH_INTERVAL;
+    document.getElementById('countdown').textContent = countdownVal;
+  }, 1000);
+
+  refreshTimer = setInterval(() => {
+    refreshAll();
+    countdownVal = REFRESH_INTERVAL;
+  }, REFRESH_INTERVAL * 1000);
+}
+
+// ─── BOOT ─────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  try {
+    initPriceChart();
+  } catch(e) {
+    console.warn('[Dashboard] Chart init failed (CDN may not have loaded):', e);
+    document.getElementById('chartOverlay').innerHTML =
+      '<span class="error-chip">Chart library failed to load. Please refresh.</span>';
+  }
+  refreshAll();
+  startCountdown();
+});
+</script>
+</body>
+</html>
